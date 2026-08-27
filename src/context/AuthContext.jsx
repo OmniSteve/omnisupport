@@ -1,49 +1,79 @@
+// Standalone authentication context for Omni Support.
+// Session validity is confirmed against the backend
+// via GET /auth/me on startup — a cached user object is never trusted as proof
+// of an active session.
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authApi } from "@/api";
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEY = "omni_token";
+const TOKEN_KEY = "omni_token";
 const USER_KEY = "omni_user";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem(STORAGE_KEY);
-    const stored = localStorage.getItem(USER_KEY);
-    if (token && stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        localStorage.removeItem(USER_KEY);
-      }
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+    // Validate the stored token against the backend. The returned user is
+    // authoritative; on failure the local session is cleared.
+    authApi
+      .me()
+      .then((u) => {
+        setUser(u);
+        setIsAuthenticated(true);
+        localStorage.setItem(USER_KEY, JSON.stringify(u));
+      })
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        setUser(null);
+        setIsAuthenticated(false);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (email, password) => {
     const { token, user } = await authApi.login(email, password);
-    localStorage.setItem(STORAGE_KEY, token);
+    localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
     setUser(user);
+    setIsAuthenticated(true);
     return user;
   }, []);
 
   const logout = useCallback(async () => {
-    await authApi.logout();
-    localStorage.removeItem(STORAGE_KEY);
+    // Notify the backend so it can revoke the session/refresh token, then clear
+    // the local session regardless of whether the server call succeeds.
+    try {
+      await authApi.logout();
+    } catch {
+      /* ignore — always clear locally */
+    }
+    localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     setUser(null);
+    setIsAuthenticated(false);
   }, []);
 
-  const value = { user, loading, login, logout, isAuthenticated: !!user };
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{ user, isAuthenticated, loading, login, logout }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) throw new Error("useAuth must be used within an AuthProvider");
   return ctx;
 }

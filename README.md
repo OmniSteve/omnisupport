@@ -1,38 +1,27 @@
 # Omni Solutions — Support Ticket Management System
 
-A production-quality, **standalone** support ticket / helpdesk application for Omni
-Solutions and its clients. Built with React + Vite + Tailwind CSS. It is designed
-to be exported, stored in GitHub, and deployed independently on Cloudflare
-(Workers + D1 + R2) — **with zero Base44 runtime dependencies** in the shipped
-application code.
+A production-quality support ticket / helpdesk application for Omni Solutions and
+its clients. Built as a **standalone React + Vite + Tailwind CSS** frontend with a
+clean REST API abstraction layer. It is designed to be developed in any standard
+editor (VS Code / Codex) and deployed to **Cloudflare** (Pages + Workers + D1 + R2).
 
-> Base44 is used only to help generate this project. The finished app does not
-> import `@base44/sdk`, Base44 entities, Base44 auth, Base44 database, Base44
-> functions, or any Base44 runtime API. All data access goes through a clean
-> REST abstraction (`src/api/`) that can be pointed at any backend.
+The frontend has no platform-specific runtime dependencies. All data access goes
+through `src/api/`, which routes to either an in-browser mock layer or a real REST
+backend, controlled by environment variables.
 
 ---
 
 ## Features
 
-- **Dashboard** — KPI cards (Open, Awaiting Response, In Progress, Resolved Today,
-  Overdue), trend chart, breakdowns by status / priority / category / agent,
-  recent tickets and a personal work queue.
-- **Tickets** — powerful table with search, sort, multi-filter, saved views,
-  pagination, multi-select and bulk actions.
-- **Ticket Detail** — conversation timeline distinguishing customer messages,
-  support replies and **internal notes** (hidden from clients), a reply composer
-  with Reply / Internal Note modes, sidebar controls (status, priority, category,
-  assignee, customer, dates, tags) and an immutable activity history.
-- **Human-readable ticket references** — `OMNI-000001`, permanent and unique.
-- **Customers & Organisations** — company → contacts → tickets hierarchy with
-  full support history per customer.
+- **Dashboard** — KPI cards, 7-day trend, breakdowns by status / priority / category / agent, recent tickets, personal work queue.
+- **Tickets** — searchable, sortable, filterable table with saved views, pagination, multi-select and bulk actions.
+- **Ticket Detail** — conversation timeline separating customer messages, support replies and **internal notes** (hidden from clients); reply composer with Reply / Internal Note modes; sidebar controls (status, priority, category, assignee, customer, dates, tags); immutable activity history.
+- **Human-readable ticket references** — `OMNI-000001`.
+- **Customers & Organisations** — company → contacts → tickets hierarchy with full support history per customer.
 - **Knowledge Base** — categories and articles (published / draft).
-- **Reports** — created / resolved, average response & resolution times,
-  breakdowns, SLA compliance, with date range filtering.
-- **Users & Teams** — agent / admin management, team-ready assignment model.
-- **Settings** — configurable ticket prefix, SLA rules, statuses, priorities,
-  categories (sourced from the API in production).
+- **Reports** — created / resolved, average response & resolution times, breakdowns, SLA compliance, date range filtering.
+- **Users & Teams** — agent / admin management.
+- **Settings** — configurable ticket prefix, SLA rules, categories (sourced from the API in production).
 - **Role-aware UI** — Admin / Support Agent / Client.
 - **Dark mode** ready (token-based architecture).
 - **Responsive** — desktop-first, works on tablet and mobile.
@@ -42,52 +31,83 @@ application code.
 ## Quick start
 
 ```bash
-# 1. Install dependencies
 npm install
-
-# 2. Configure environment
 cp .env.example .env
-#   - VITE_USE_MOCK=true  (default) uses the in-browser mock API — no backend needed
-#   - VITE_API_BASE_URL=/api
-
-# 3. Run the dev server
 npm run dev
 ```
 
-Open the printed URL and sign in with any seeded account, e.g.
-`alex@omnisolutions.mt` / any password (mock mode accepts any seeded email).
+With the default `.env` (`VITE_USE_MOCK=true`) the app runs entirely in the browser
+using the mock API — no backend required. Sign in with any seeded account, e.g.
+`alex@omnisolutions.mt` (any password is accepted in mock mode).
 
 ---
 
-## Switching from mock to the real backend
-
-The frontend never talks to the database directly. Everything goes through
-`src/api/`, which routes to either the mock layer (`src/mocks/`) or the real REST
-API depending on `VITE_USE_MOCK`:
+## Architecture
 
 ```
-VITE_USE_MOCK=true   →  src/mocks/handlers.js  (in-browser)
-VITE_USE_MOCK=false  →  fetch(VITE_API_BASE_URL + path)   (your Cloudflare API)
+UI (src/pages, src/components)
+  ↓
+src/api/*            (resource modules: auth, tickets, customers, users, reports, knowledge)
+  ↓
+src/api/client.js    (single request() entry point)
+  ↓
+VITE_USE_MOCK=true   →  src/mocks/handlers.js   (in-browser mock DB + router)
+VITE_USE_MOCK=false  →  fetch(VITE_API_BASE_URL + path)   (your REST API)
 ```
 
-No UI changes are required to switch — just set the env vars and deploy.
+React components never call `fetch()` directly — they use the `src/api/*` modules.
+Backend-specific logic stays out of the UI.
 
 ---
 
 ## Environment variables
 
-See `.env.example`. All are **public** (Vite env vars are bundled into the
-browser) — never put secrets here.
+All variables are public (bundled into the browser) — never put secrets here.
+See `.env.example`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `VITE_API_BASE_URL` | `/api` | Base URL of the REST API |
-| `VITE_USE_MOCK` | `true` | `true` = in-browser mock, `false` = real API |
-| `VITE_SUPPORT_EMAIL` | `support@omnisolutions.mt` | Display-only support email |
-| `VITE_APP_NAME` | `Omni Solutions Support` | App name shown in the UI |
+| `VITE_API_BASE_URL` | `/api` | Base URL of the REST API. Must include the `/api` segment. |
+| `VITE_USE_MOCK` | `true` | `true` = in-browser mock, `false` = real API. |
+| `VITE_SUPPORT_EMAIL` | `support@omnisolutions.mt` | Display-only support email. |
+| `VITE_APP_NAME` | `Omni Solutions Support` | App name shown in the UI. |
 
-Secrets (API keys, DB credentials, email provider keys) belong **server-side**
-on the Cloudflare Worker — never in the frontend bundle.
+### API base URL convention
+
+The frontend calls paths like `/auth/login`, `/tickets`, `/customers` and prepends
+`VITE_API_BASE_URL`. The frontend does **not** add an extra `/api`. Therefore:
+
+```
+VITE_API_BASE_URL=/api
+request("/auth/login")  →  GET/POST  /api/auth/login
+```
+
+Or for a dedicated API domain:
+
+```
+VITE_API_BASE_URL=https://api.omnisolutions.mt/api
+request("/auth/login")  →  GET/POST  https://api.omnisolutions.mt/api/auth/login
+```
+
+Secrets (DB credentials, JWT signing keys, email provider keys) belong
+server-side on the Worker — never in the frontend bundle.
+
+---
+
+## Authentication
+
+Authentication is handled entirely by the standalone auth context
+(`src/context/AuthContext.jsx`) and the API abstraction (`src/api/auth.js`):
+
+1. On startup, if a token is stored, the app calls `GET /auth/me` to validate it.
+   The backend-returned user is authoritative; on failure the local session is cleared.
+2. `POST /auth/login` returns `{ token, user }`; the token is stored and sent as
+   `Authorization: Bearer <token>` on subsequent requests.
+3. `POST /auth/logout` notifies the backend (so it can revoke the session), then
+   clears the local session regardless of the server response.
+
+Protected routes redirect unauthenticated users to `/login`. Admin-only routes
+(`/users`, `/settings`) require `user.role === "admin"`.
 
 ---
 
@@ -96,27 +116,27 @@ on the Cloudflare Worker — never in the frontend bundle.
 ```
 src/
   api/            # REST abstraction (client, auth, tickets, customers, users, reports, knowledge)
-  mocks/          # In-browser mock DB + request router (dev only, fully isolated)
+  mocks/          # In-browser mock DB + request router (dev only)
   context/        # Standalone Auth, Theme, Toast providers
   lib/            # constants, formatting, hooks, utils
   components/
     layout/       # Sidebar, Topbar, AppLayout
-    ui/           # Badge, Button, Card, Input, Avatar, Skeleton, EmptyState
+    ui/           # Badge, Button, Card, Input, Avatar, Skeleton, EmptyState (shadcn-based)
     tickets/      # TicketTable
-  pages/          # Dashboard, Tickets, TicketDetail, NewTicket, MyTickets,
-                  # Customers, CustomerDetail, KnowledgeBase, Reports, Users, Settings, Login
+  pages/          # Dashboard, Tickets, TicketDetail, NewTicket, MyTickets, Customers,
+                  # CustomerDetail, KnowledgeBase, Reports, Users, Settings, Login
 docs/
-  API.md          # Expected REST API contract
+  API.md          # REST API contract
   DEPLOYMENT.md   # Cloudflare deployment guide
 ```
 
 ---
 
-## Expected REST API contract
+## REST API contract
 
-See [`docs/API.md`](docs/API.md) for the full endpoint list the frontend calls.
-The mock router in `src/mocks/handlers.js` implements exactly these endpoints,
-so it doubles as a living specification.
+See [`docs/API.md`](docs/API.md). The mock router (`src/mocks/handlers.js`)
+implements the exact same contract, so it doubles as a living specification for the
+Cloudflare Workers backend.
 
 ---
 
@@ -124,39 +144,24 @@ so it doubles as a living specification.
 
 See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md). Summary:
 
-- **Frontend** → Cloudflare Pages (build with `npm run build`, serve `dist/`).
+- **Frontend** → Cloudflare Pages (`npm run build`, serve `dist/`).
 - **Backend** → Cloudflare Workers exposing the REST API in `docs/API.md`.
-- **Database** → Cloudflare D1.
-- **Attachments** → Cloudflare R2 (upload via `/api/attachments`, return a URL).
-- **Auth** → handled by the Worker (issue JWTs); the frontend only stores the
-  token and sends `Authorization: Bearer <token>`.
+- **Database** → Cloudflare D1 (planned).
+- **Attachments** → Cloudflare R2 (planned).
+- **Auth** → handled by the Worker (JWTs); the frontend only stores the token.
 
-Set `VITE_USE_MOCK=false` and `VITE_API_BASE_URL` to your Worker URL for
-production builds.
+Set `VITE_USE_MOCK=false` and `VITE_API_BASE_URL` to your Worker URL for production.
 
 ---
 
-## Removing Base44 from the exported project
+## Scripts
 
-This project is generated inside Base44, but the shipped app is standalone. The
-only Base44-touched file that remains in the generator environment is the
-platform-managed `src/lib/AuthContext.jsx` (used solely so the project builds
-inside the Base44 builder). When exporting to GitHub:
-
-1. The app uses `src/context/AuthContext.jsx` (standalone) for authentication —
-   not `src/lib/AuthContext.jsx`.
-2. Delete `src/lib/AuthContext.jsx`, `src/lib/app-params.js`,
-   `src/api/base44Client*`, and `src/components/UserNotRegisteredError.jsx`
-   (only referenced by the platform scaffold).
-3. Remove the `AuthProvider` / `useAuth` import from `@/lib/AuthContext` in
-   `src/App.jsx` and the `<AuthProvider>` wrapper (keep the standalone
-   `AppAuthProvider` from `@/context/AuthContext`).
-4. Remove `@base44/sdk` and `@base44/vite-plugin` from `package.json` and adjust
-   `vite.config.js` to a standard Vite config.
-5. `grep -ri base44 src/` should return nothing.
-
-After these steps the project builds with standard `npm install && npm run build`
-and runs anywhere Node/Vite is available.
+| Script | Description |
+|---|---|
+| `npm run dev` | Start the Vite dev server (mock mode by default). |
+| `npm run build` | Production build to `dist/`. |
+| `npm run preview` | Preview the production build locally. |
+| `npm run lint` | Run ESLint. |
 
 ---
 

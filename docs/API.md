@@ -5,6 +5,20 @@ router (`src/mocks/handlers.js`) implements this exact contract, so it serves as
 both the dev backend and the specification for the real Cloudflare Workers
 backend.
 
+## Base URL convention
+
+The frontend calls logical paths (e.g. `/auth/login`, `/tickets`) and prepends
+`VITE_API_BASE_URL`. The frontend does **not** add an extra `/api`, so
+`VITE_API_BASE_URL` must include the `/api` segment:
+
+```
+VITE_API_BASE_URL=/api
+request("/auth/login")  →  /api/auth/login
+
+VITE_API_BASE_URL=https://api.omnisolutions.mt/api
+request("/auth/login")  →  https://api.omnisolutions.mt/api/auth/login
+```
+
 All requests use JSON. Authenticated requests send
 `Authorization: Bearer <token>`. Errors return `{ "error": "<message>",
 "details": ... }` with an appropriate HTTP status.
@@ -15,43 +29,47 @@ All requests use JSON. Authenticated requests send
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| POST | `/api/auth/login` | `{ email, password }` | `{ token, user }` |
-| GET | `/api/auth/me` | — | `user` |
-| POST | `/api/auth/logout` | — | `204` |
+| POST | `/auth/login` | `{ email, password }` | `{ token, user }` |
+| GET | `/auth/me` | — | `user` (validates the token) |
+| POST | `/auth/logout` | — | `{ ok: true }` |
+
+> Future endpoints (not yet implemented): `POST /auth/forgot-password`,
+> `POST /auth/reset-password`. The corresponding UI screens are intentionally
+> omitted until the backend supports them.
 
 ## Tickets
 
 | Method | Path | Query / Body | Returns |
 |---|---|---|---|
-| GET | `/api/tickets` | `status, priority, category, customer_id, assigned_user_id, unassigned, overdue, assigned_me, search` | `{ items: Ticket[], total }` |
-| POST | `/api/tickets` | `{ customer_id, subject, description, category, priority, assigned_user_id, assigned_team_id, tags, attachments }` | `Ticket` |
-| GET | `/api/tickets/:reference` | — | `Ticket` |
-| PATCH | `/api/tickets/:reference` | `{ status?, priority?, category?, assigned_user_id?, tags?, due_at? }` | `Ticket` |
-| GET | `/api/tickets/:reference/messages` | — | `{ items: Message[] }` |
-| POST | `/api/tickets/:reference/messages` | `{ author_id, author_type, message_type, content, attachments }` | `Message` |
-| GET | `/api/tickets/:reference/activity` | — | `{ items: Activity[] }` |
+| GET | `/tickets` | `status, priority, category, customer_id, assigned_user_id, unassigned, overdue, assigned_me, search` | `{ items: Ticket[], total }` |
+| POST | `/tickets` | `{ customer_id, subject, description, category, priority, assigned_user_id, assigned_team_id, tags, attachments }` | `Ticket` |
+| GET | `/tickets/:reference` | — | `Ticket` |
+| PATCH | `/tickets/:reference` | `{ status?, priority?, category?, assigned_user_id?, tags?, due_at? }` | `Ticket` |
+| GET | `/tickets/:reference/messages` | — | `{ items: Message[] }` |
+| POST | `/tickets/:reference/messages` | `{ author_id, author_type, message_type, content, attachments }` | `Message` |
+| GET | `/tickets/:reference/activity` | — | `{ items: Activity[] }` |
 
 ## Customers & Organisations
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/api/customers` | `{ items: Customer[] }` |
-| POST | `/api/customers` | `Customer` |
-| GET | `/api/customers/:id` | `Customer` (with `tickets: Ticket[]`) |
-| GET | `/api/organisations` | `{ items: Organisation[] }` |
+| GET | `/customers` | `{ items: Customer[] }` |
+| POST | `/customers` | `Customer` |
+| GET | `/customers/:id` | `Customer` (with `tickets: Ticket[]`) |
+| GET | `/organisations` | `{ items: Organisation[] }` |
 
 ## Users & Teams
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/api/users` | `{ items: User[] }` |
-| GET | `/api/teams` | `{ items: Team[] }` |
+| GET | `/users` | `{ items: User[] }` |
+| GET | `/teams` | `{ items: Team[] }` |
 
 ## Reports
 
 | Method | Path | Query | Returns |
 |---|---|---|---|
-| GET | `/api/reports/summary` | `range` | summary object (see below) |
+| GET | `/reports/summary` | `range` | summary object (see below) |
 
 ```json
 {
@@ -68,28 +86,28 @@ All requests use JSON. Authenticated requests send
 
 | Method | Path | Query | Returns |
 |---|---|---|---|
-| GET | `/api/knowledge/categories` | — | `{ items: Category[] }` |
-| GET | `/api/knowledge/articles` | `published` | `{ items: Article[] }` |
+| GET | `/knowledge/categories` | — | `{ items: Category[] }` |
+| GET | `/knowledge/articles` | `published` | `{ items: Article[] }` |
 
 ## Notifications
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/api/notifications` | `{ items: Notification[] }` |
+| GET | `/notifications` | `{ items: Notification[] }` |
 
 ## Admin / Settings
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| GET | `/api/admin/settings` | — | `Settings` |
-| PUT | `/api/admin/settings` | `Settings` | `Settings` |
+| GET | `/admin/settings` | — | `Settings` |
+| PUT | `/admin/settings` | `Settings` | `Settings` |
 
 ## Attachments (R2-ready)
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| POST | `/api/attachments` | `multipart/form-data` | `{ url, name, size }` |
-| GET | `/api/attachments/:id` | — | file stream (authorized) |
+| POST | `/attachments` | `multipart/form-data` | `{ url, name, size }` |
+| GET | `/attachments/:id` | — | file stream (authorized) |
 
 Attachments are never stored as Base64 in the database — only the returned URL
 is referenced on the ticket/message.

@@ -1,4 +1,4 @@
-// Standalone API client. No Base44 dependencies.
+// Standalone API client.
 // Routes every call to either the in-browser mock layer or the real REST API
 // at VITE_API_BASE_URL, depending on VITE_USE_MOCK.
 

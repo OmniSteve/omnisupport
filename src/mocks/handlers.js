@@ -67,6 +67,9 @@ export async function handleMock(method, path, body) {
     const user = db.users[0];
     return ok(user);
   }
+  if (rawPath === "/auth/logout" && m === "POST") {
+    return ok({ ok: true });
+  }
 
   // ---- TICKETS ----
   if (rawPath === "/tickets" && m === "GET") {

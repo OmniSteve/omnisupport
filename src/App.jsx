@@ -1,58 +1,47 @@
-import { Toaster } from "@/components/ui/toaster"
-import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import ScrollToTop from './components/ScrollToTop';
+import { Toaster } from "@/components/ui/toaster";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClientInstance } from "@/lib/query-client";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+} from "react-router-dom";
+import ScrollToTop from "@/components/ScrollToTop";
 
-// Standalone providers (no Base44 dependencies) — these drive the actual app.
-import { ThemeProvider } from '@/context/ThemeContext';
-import { AuthProvider as AppAuthProvider, useAuth as useAppAuth } from '@/context/AuthContext';
-import { ToastProvider } from '@/context/ToastContext';
-import { AppLayout } from '@/components/layout/AppLayout';
+// Auth is imported from "@/lib/AuthContext", which Vite aliases to the
+// standalone context (src/context/AuthContext.jsx). See vite.config.js.
+import { AuthProvider, useAuth } from "@/lib/AuthContext";
+import UserNotRegisteredError from "@/components/UserNotRegisteredError";
 
-import Login from '@/pages/Login';
-import Dashboard from '@/pages/Dashboard';
-import Tickets from '@/pages/Tickets';
-import MyTickets from '@/pages/MyTickets';
-import TicketDetail from '@/pages/TicketDetail';
-import NewTicket from '@/pages/NewTicket';
-import Customers from '@/pages/Customers';
-import CustomerDetail from '@/pages/CustomerDetail';
-import KnowledgeBase from '@/pages/KnowledgeBase';
-import Reports from '@/pages/Reports';
-import Users from '@/pages/Users';
-import Settings from '@/pages/Settings';
+import { ThemeProvider } from "@/context/ThemeContext";
+import { ToastProvider } from "@/context/ToastContext";
+import { AppLayout } from "@/components/layout/AppLayout";
 
-const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError } = useAuth();
+import Login from "@/pages/Login";
+import Dashboard from "@/pages/Dashboard";
+import Tickets from "@/pages/Tickets";
+import MyTickets from "@/pages/MyTickets";
+import TicketDetail from "@/pages/TicketDetail";
+import NewTicket from "@/pages/NewTicket";
+import Customers from "@/pages/Customers";
+import CustomerDetail from "@/pages/CustomerDetail";
+import KnowledgeBase from "@/pages/KnowledgeBase";
+import Reports from "@/pages/Reports";
+import Users from "@/pages/Users";
+import Settings from "@/pages/Settings";
 
-  if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (authError && authError.type === 'user_not_registered') {
-    return <UserNotRegisteredError />;
-  }
-
-  return <AppRoutes />;
-};
+const Spinner = () => (
+  <div className="fixed inset-0 flex items-center justify-center">
+    <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+  </div>
+);
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAppAuth();
+  const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
-  if (loading) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  if (loading) return <Spinner />;
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
@@ -60,23 +49,20 @@ function ProtectedRoute({ children }) {
 }
 
 function AdminRoute({ children }) {
-  const { user } = useAppAuth();
+  const { user } = useAuth();
   if (user?.role !== "admin") return <Navigate to="/" replace />;
   return children;
 }
 
 function AppRoutes() {
-  const { isAuthenticated, loading } = useAppAuth();
-  if (loading) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return <Spinner />;
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <Login />} />
+      <Route
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/" replace /> : <Login />}
+      />
       <Route
         element={
           <ProtectedRoute>
@@ -101,19 +87,26 @@ function AppRoutes() {
   );
 }
 
+function AuthenticatedApp() {
+  const { user, isAuthenticated, loading } = useAuth();
+  if (loading) return <Spinner />;
+  // An authenticated session with no recognised role is treated as not
+  // registered for this application.
+  if (isAuthenticated && !user?.role) return <UserNotRegisteredError />;
+  return <AppRoutes />;
+}
+
 function App() {
   return (
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <ThemeProvider>
-          <AppAuthProvider>
-            <ToastProvider>
-              <Router>
-                <ScrollToTop />
-                <AuthenticatedApp />
-              </Router>
-            </ToastProvider>
-          </AppAuthProvider>
+          <ToastProvider>
+            <Router>
+              <ScrollToTop />
+              <AuthenticatedApp />
+            </Router>
+          </ToastProvider>
         </ThemeProvider>
         <Toaster />
       </QueryClientProvider>
